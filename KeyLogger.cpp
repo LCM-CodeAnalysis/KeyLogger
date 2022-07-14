@@ -4,10 +4,50 @@
 
 #define	DEF_DLL_PATH ".\\KeyBoardHook.dll"
 
-using namespace std;
-
 typedef void (*PFN_HOOKSTART)();    // 함수 포인터 정의
 typedef void (*PFN_HOOKSTOP)();     // 함수 포인터 정의
+void NTAPI TLS_CALLBACK(PVOID DllHandel, DWORD Reason, PVOID Reserved);
+
+#ifdef _WIN64
+#pragma comment (linker, "/INCLUDE:_tls_used")
+#pragma comment (linker, "/INCLUDE:tls_callback_func")
+#else
+#pragma comment (linker, "/INCLUDE:__tls_used")
+#pragma comment (linker, "/INCLUDE:_tls_callback_func")
+#endif
+
+#ifdef _WIN64
+#pragma const_seg(".CRT$XLF")
+EXTERN_C const
+#else
+#pragma data_seg(".CRT$XLF")
+EXTERN_C
+#endif
+PIMAGE_TLS_CALLBACK tls_callback_func = TLS_CALLBACK;
+#ifdef _WIN64
+#pragma const_seg()
+#else
+#pragma data_seg()
+#endif
+
+using namespace std;
+
+void NTAPI TLS_CALLBACK(PVOID DllHandel, DWORD Reason, PVOID Reserved) {
+    switch (Reason) {
+    case DLL_PROCESS_ATTACH:
+        cout << "DLL_PROCESS_ATTACH." << endl;
+        break;
+    case DLL_THREAD_ATTACH:
+        cout << "DLL_THREAD_ATTACH." << endl;
+        break;
+    case DLL_THREAD_DETACH:
+        cout << "DLL_THREAD_DETACH." << endl;
+        break;
+    case DLL_PROCESS_DETACH:
+        cout << "DLL_PROCESS_DETACH." << endl;
+        break;
+    }
+}
 
 int main()
 {
