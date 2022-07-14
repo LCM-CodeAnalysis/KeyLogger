@@ -7,9 +7,17 @@
 
 typedef void (*PFN_HOOKSTART)();    // 함수 포인터 정의
 typedef void (*PFN_HOOKSTOP)();     // 함수 포인터 정의
+typedef NTSTATUS(WINAPI* NTQUERYINFORMATIONPROCESS)(
+    HANDLE ProcessHandle,
+    PROCESSINFOCLASS ProcessInformationClass,
+    PVOID ProcessInformation,
+    ULONG ProcessInformationLength,
+    PULONG ReturnLength
+    );
 void NTAPI TLS_CALLBACK(PVOID DllHandel, DWORD Reason, PVOID Reserved);
 void Proc_Exit_By_Debug();
 bool Check_Debugging_By_PEB_BeingDebugged();
+bool Check_Debugging_By_NtQueryInformationProcess();
 PPEB Get_PEB();
 
 #ifdef _WIN64
@@ -42,6 +50,7 @@ void NTAPI TLS_CALLBACK(PVOID DllHandel, DWORD Reason, PVOID Reserved) {
     case DLL_PROCESS_ATTACH:
         cout << "DLL_PROCESS_ATTACH." << endl;
         if (Check_Debugging_By_PEB_BeingDebugged()) Proc_Exit_By_Debug();
+        if (Check_Debugging_By_NtQueryInformationProcess()) Proc_Exit_By_Debug();
         break;
     case DLL_THREAD_ATTACH:
         cout << "DLL_THREAD_ATTACH." << endl;
@@ -70,6 +79,29 @@ PPEB Get_PEB() {
     PTEB tebPtr = reinterpret_cast<PTEB>(__readgsqword(reinterpret_cast<DWORD_PTR>(&static_cast<NT_TIB*>(nullptr)->Self)));
     PPEB pebPtr = tebPtr->ProcessEnvironmentBlock;
     return pebPtr;
+}
+
+
+bool Check_Debugging_By_NtQueryInformationProcess() {
+    NTQUERYINFORMATIONPROCESS pNtQueryInformationProcess = NULL;
+    pNtQueryInformationProcess = (NTQUERYINFORMATIONPROCESS)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryInformationProcess");
+    
+    // ProcessDebugPort (0x7)
+    DWORD dwDebugPort = 0;
+    pNtQueryInformationProcess(GetCurrentProcess(), ProcessDebugPort, &dwDebugPort, sizeof(dwDebugPort), NULL);
+    if (dwDebugPort != 0x0) return true;
+
+    // ProcessDebugObjectHandle (0x1E)
+    HANDLE hDebugObject = NULL;
+    pNtQueryInformationProcess(GetCurrentProcess(), (PROCESSINFOCLASS)0x1e, &hDebugObject, sizeof(hDebugObject), NULL);
+    if(hDebugObject != 0x0) return true;
+
+    // ProcessDebugFlags (0x1F)
+    BOOL bDebugFlag = TRUE;
+    pNtQueryInformationProcess(GetCurrentProcess(), (PROCESSINFOCLASS)0x1f, &bDebugFlag, sizeof(bDebugFlag), NULL);
+    if (bDebugFlag == 0x0) return true;
+
+    return false;
 }
 
 
