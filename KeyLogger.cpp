@@ -8,6 +8,8 @@
 typedef void (*PFN_HOOKSTART)();    // 함수 포인터 정의
 typedef void (*PFN_HOOKSTOP)();     // 함수 포인터 정의
 void NTAPI TLS_CALLBACK(PVOID DllHandel, DWORD Reason, PVOID Reserved);
+void Proc_Exit_By_Debug();
+bool Check_Debugging_By_PEB_BeingDebugged();
 PPEB Get_PEB();
 
 #ifdef _WIN64
@@ -35,15 +37,11 @@ PIMAGE_TLS_CALLBACK tls_callback_func = TLS_CALLBACK;
 using namespace std;
 
 void NTAPI TLS_CALLBACK(PVOID DllHandel, DWORD Reason, PVOID Reserved) {
-    PPEB PEB = NULL;
+    
     switch (Reason) {
     case DLL_PROCESS_ATTACH:
         cout << "DLL_PROCESS_ATTACH." << endl;
-        PEB = Get_PEB();;
-        if (PEB->BeingDebugged) {
-            cout << "디버깅이 감지되어 프로그램을 종료합니다." << endl;
-            exit(0);
-        }
+        if (Check_Debugging_By_PEB_BeingDebugged()) Proc_Exit_By_Debug();
         break;
     case DLL_THREAD_ATTACH:
         cout << "DLL_THREAD_ATTACH." << endl;
@@ -57,11 +55,23 @@ void NTAPI TLS_CALLBACK(PVOID DllHandel, DWORD Reason, PVOID Reserved) {
     }
 }
 
+void Proc_Exit_By_Debug() {
+    cout << "디버깅이 감지되어 프로그램을 종료합니다." << endl;
+    exit(0);
+}
+
+bool Check_Debugging_By_PEB_BeingDebugged() {
+    PPEB PEB = NULL;
+    PEB = Get_PEB();
+    return PEB->BeingDebugged;
+}
+
 PPEB Get_PEB() {
     PTEB tebPtr = reinterpret_cast<PTEB>(__readgsqword(reinterpret_cast<DWORD_PTR>(&static_cast<NT_TIB*>(nullptr)->Self)));
     PPEB pebPtr = tebPtr->ProcessEnvironmentBlock;
     return pebPtr;
 }
+
 
 int main()
 {
