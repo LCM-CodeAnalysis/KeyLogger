@@ -1,12 +1,14 @@
 #include <iostream>
 #include <windows.h>
 #include <conio.h>
+#include <winternl.h>
 
 #define	DEF_DLL_PATH ".\\KeyBoardHook.dll"
 
 typedef void (*PFN_HOOKSTART)();    // 함수 포인터 정의
 typedef void (*PFN_HOOKSTOP)();     // 함수 포인터 정의
 void NTAPI TLS_CALLBACK(PVOID DllHandel, DWORD Reason, PVOID Reserved);
+PPEB Get_PEB();
 
 #ifdef _WIN64
 #pragma comment (linker, "/INCLUDE:_tls_used")
@@ -33,9 +35,15 @@ PIMAGE_TLS_CALLBACK tls_callback_func = TLS_CALLBACK;
 using namespace std;
 
 void NTAPI TLS_CALLBACK(PVOID DllHandel, DWORD Reason, PVOID Reserved) {
+    PPEB PEB = NULL;
     switch (Reason) {
     case DLL_PROCESS_ATTACH:
         cout << "DLL_PROCESS_ATTACH." << endl;
+        PEB = Get_PEB();;
+        if (PEB->BeingDebugged) {
+            cout << "디버깅이 감지되어 프로그램을 종료합니다." << endl;
+            exit(0);
+        }
         break;
     case DLL_THREAD_ATTACH:
         cout << "DLL_THREAD_ATTACH." << endl;
@@ -47,6 +55,12 @@ void NTAPI TLS_CALLBACK(PVOID DllHandel, DWORD Reason, PVOID Reserved) {
         cout << "DLL_PROCESS_DETACH." << endl;
         break;
     }
+}
+
+PPEB Get_PEB() {
+    PTEB tebPtr = reinterpret_cast<PTEB>(__readgsqword(reinterpret_cast<DWORD_PTR>(&static_cast<NT_TIB*>(nullptr)->Self)));
+    PPEB pebPtr = tebPtr->ProcessEnvironmentBlock;
+    return pebPtr;
 }
 
 int main()
